@@ -75,10 +75,10 @@
         &copy; {{ new Date().getFullYear() }} HAKUTAKA DEV. ALL RIGHTS RESERVED.
       </p>
       <div class="flex items-center justify-center gap-4 text-[10px]">
-        <span class="text-gray-600 flex items-center gap-1">
+        <a href="https://github.com/prometheus-lua/Prometheus.git" target="_blank" class="text-gray-600 hover:text-hacker-green transition flex items-center gap-1">
           <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
           Based on Prometheus
-        </span>
+        </a>
       </div>
     </footer>
 
@@ -117,6 +117,29 @@
       </div>
     </Transition>
 
+    <Transition name="fade">
+      <div v-if="isProcessing" class="fixed inset-0 z-[120] bg-black/95 flex flex-col items-center justify-center p-6">
+        <div class="w-full max-w-md font-mono">
+          <div class="flex justify-between text-xs text-hacker-green mb-2">
+            <span class="animate-pulse">PROCESSING_DATA_STREAM...</span>
+            <span>{{ timer }}s</span>
+          </div>
+          <div class="h-32 overflow-hidden border border-gray-800 bg-[#050505] p-3 rounded mb-4 text-[10px] text-gray-500 space-y-1" ref="terminalRef">
+             <div v-for="(line, i) in terminalLogs" :key="i" class="truncate">
+              <span class="text-hacker-green mr-2">➜</span>
+              <span :class="{'text-white': i === terminalLogs.length-1}">{{ line }}</span>
+            </div>
+          </div>
+          <div class="h-1 bg-gray-900 rounded-full overflow-hidden w-full mb-6">
+            <div class="h-full bg-hacker-green animate-progress shadow-[0_0_10px_#00ff41]"></div>
+          </div>
+          <button @click="terminateWorker" class="text-[10px] text-red-500 hover:text-red-400 uppercase tracking-widest w-full text-center">
+            [ EMERGENCY ABORT ]
+          </button>
+        </div>
+      </div>
+    </Transition>
+
   </div>
 </template>
 
@@ -149,35 +172,30 @@ const showToast = (title, msg, type = 'success') => {
   setTimeout(() => toasts.value = toasts.value.filter(t => t.id !== id), 4000)
 }
 
-// --- WORKER SETUP ---
+// Remove imports regarding Wasmoon/LuaFactory
+// import { LuaFactory } from '...' (DELETE THIS)
+
+// ... inside script setup ...
+
 const initWorker = () => {
-    // FIX: Menggunakan Classic Worker (tanpa { type: 'module' }) untuk menghindari error importScripts
-    worker = new Worker('/workers/lua.worker.js'); 
+    // Point to the dedicated file instead of creating Blob from string
+    worker = new Worker('/workers/lua.worker.js', { type: 'module' });
 
     worker.onmessage = (e) => {
         const { type, result, msg } = e.data;
-        
         if (type === 'READY') {
             workerReady.value = true;
-            terminalLogs.value.push("SYSTEM ONLINE: FENGARI VM DETECTED.");
-        } 
-        else if (type === 'SUCCESS') {
+            // Fake log for UX
+            terminalLogs.value.push("LUA VM MOUNTED (FENGARI v0.1.4)");
+        } else if (type === 'SUCCESS') {
             stopProcessing();
             resultBlob.value = result;
             resultSize.value = new Blob([result]).size;
             showDownloadModal.value = true;
-        } 
-        else if (type === 'ERROR') {
+        } else if (type === 'ERROR') {
             stopProcessing();
-            console.error("Worker Error:", msg);
             showToast("SYSTEM FAILURE", msg, "error");
         }
-    };
-
-    worker.onerror = (err) => {
-        stopProcessing();
-        console.error("Worker Silent Fail:", err);
-        showToast("CRITICAL ERROR", "Worker failed to start. Check console.", "error");
     };
 
     // Send Init Signal with Base URL so worker can fetch JSON
@@ -220,12 +238,7 @@ const startObfuscation = () => {
 
     // Delay sedikit biar animasi jalan
     setTimeout(() => {
-        if(workerReady.value) {
-            worker.postMessage({ type: 'RUN', payload: { code: inputCode.value, preset: selectedPreset.value } })
-        } else {
-            showToast("WAIT", "Worker not ready yet...", "error");
-            stopProcessing();
-        }
+        worker.postMessage({ type: 'RUN', payload: { code: inputCode.value, preset: selectedPreset.value } })
     }, 500)
 }
 
@@ -260,12 +273,38 @@ const getPresetDesc = (p) => ({
 
 watch(terminalLogs, async () => { await nextTick(); if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight }, { deep: true })
 
-onMounted(() => {
-    // Delay sedikit untuk memastikan Nuxt hydrasi selesai
-    setTimeout(() => initWorker(), 100);
-})
-
+onMounted(() => initWorker())
 onBeforeUnmount(() => worker && worker.terminate())
+
+// WORKER SCRIPT (Sama seperti sebelumnya)
+const workerScript = `
+import { LuaFactory } from 'https://cdn.jsdelivr.net/npm/wasmoon@1.16.0/+esm'
+let lua, factory; self.onmessage = async (e) => {
+    const { type, payload } = e.data
+    if (type === 'INIT') {
+        try {
+            factory = new LuaFactory(); lua = await factory.createEngine()
+            const bundle = await (await fetch(new URL('/prometheus-bundle.json', payload.baseUrl))).json()
+            const mkdirRecursive = (path) => {
+                const parts = path.split('/').filter(p => p.length > 0); let current = '';
+                for (const part of parts) { current += (current ? '/' : '') + part; try { lua.global.lua.module.FS.mkdir(current) } catch(e){} }
+            }
+            for (const file of bundle) {
+                const fp = file.path.substring(0, file.path.lastIndexOf('/')); if(fp) mkdirRecursive(fp);
+                lua.global.lua.module.FS.writeFile(file.path, file.content)
+            }
+            await lua.doString(\`arg={};package.path="./?.lua;./src/?.lua;./src/prometheus/?.lua;"..package.path;local P=require("src.prometheus");function run_obfuscator(c,p) local cfg=P.Presets[p];if not cfg then return "Err" end;cfg.PrettyPrint=false;return P.Pipeline:fromConfig(cfg):apply(c,"s.lua") end\`)
+            self.postMessage({ type: 'READY' })
+        } catch (err) { self.postMessage({ type: 'ERROR', msg: err.message }) }
+    }
+    if (type === 'RUN') {
+        try {
+            if (!lua) throw new Error("Wait");
+            const res = lua.global.get('run_obfuscator')(payload.code, payload.preset)
+            self.postMessage({ type: 'SUCCESS', result: res })
+        } catch (err) { self.postMessage({ type: 'ERROR', msg: err.message }) }
+    }
+}`
 </script>
 
 <style scoped>
