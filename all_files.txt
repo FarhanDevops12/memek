@@ -1,0 +1,980 @@
+
+
+===== FILE: app.vue =====
+
+<template>
+  <Head>
+    <title>Hakutaka Obfuscator</title>
+    <meta name="theme-color" content="#000000" />
+  </Head>
+
+  <Background />
+  <div class="fixed inset-0 scanlines w-full h-full"></div>
+
+  <div class="min-h-screen flex flex-col items-center justify-center p-4 relative z-10">
+    
+    <header class="text-center mb-8 animate-fade-in-down">
+      <h1 class="text-4xl md:text-6xl font-black text-white tracking-tighter mb-2 glitch-text">
+        HAKUTAKA
+      </h1>
+      <div class="flex items-center justify-center gap-3 text-[10px] md:text-xs font-bold tracking-[0.3em] text-hacker-green">
+        <span>LUA OBFUSCATOR</span>
+        <span class="w-1 h-1 bg-gray-500 rounded-full"></span>
+        <span>SECURE ENV</span>
+      </div>
+    </header>
+
+    <div class="w-full max-w-lg glass-panel p-6 md:p-8 rounded-2xl relative group">
+      <div class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-hacker-green opacity-50 group-hover:opacity-100 transition"></div>
+      <div class="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-hacker-green opacity-50 group-hover:opacity-100 transition"></div>
+
+      <div class="space-y-6">
+        
+        <div 
+          class="relative w-full h-32 border-2 border-dashed border-gray-700 rounded-xl bg-[#050505] hover:border-hacker-green hover:bg-[#0a0a0a] transition-all group/upload cursor-pointer overflow-hidden"
+          :class="{'border-hacker-green bg-[#080f08]': fileName}"
+        >
+          <input type="file" accept=".lua,.txt" @change="handleTargetUpload" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+          
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+            <div class="mb-2 p-3 rounded-full bg-gray-900 group-hover/upload:bg-gray-800 transition">
+              <span class="text-2xl">{{ fileName ? '📄' : '☁️' }}</span>
+            </div>
+            <span class="text-xs font-bold uppercase tracking-widest" :class="fileName ? 'text-hacker-green' : 'text-gray-500'">
+              {{ fileName || 'TAP TO UPLOAD SCRIPT' }}
+            </span>
+            <span v-if="fileSize" class="text-[10px] text-gray-600 mt-1 font-mono">{{ fileSize }}</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-gray-500 uppercase mb-2 block ml-1">Security Protocol</label>
+          <div class="relative">
+            <select v-model="selectedPreset" class="select-cyber">
+              <option value="Minify">MINIFY (Ultra Fast)</option>
+              <option value="Weak">WEAK (Basic Protection)</option>
+              <option value="Medium">MEDIUM (Recommended)</option>
+              <option value="Strong">STRONG (High Security)</option>
+              <option value="MaxStrong">MAX STRONG (Heavy)</option>
+              <option value="InsaneMode">INSANE (Risk of Crash)</option>
+            </select>
+            <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-hacker-green text-[10px]">▼</div>
+          </div>
+          <div class="mt-3 p-3 bg-black/40 border-l-2 text-[10px] text-gray-400 leading-relaxed" :class="getPresetColor(selectedPreset)">
+            {{ getPresetDesc(selectedPreset) }}
+          </div>
+        </div>
+
+        <button @click="startObfuscation" :disabled="!workerReady || isProcessing || !inputCode" class="btn-cyber w-full">
+          <span v-if="!workerReady" class="animate-pulse">INITIALIZING SYSTEM...</span>
+          <span v-else-if="isProcessing">ENCRYPTING PAYLOAD...</span>
+          <span v-else>INITIATE OBFUSCATION</span>
+        </button>
+
+      </div>
+    </div>
+
+    <footer class="mt-12 text-center space-y-2 opacity-60 hover:opacity-100 transition">
+      <p class="text-[10px] text-gray-500 font-mono">
+        &copy; {{ new Date().getFullYear() }} HAKUTAKA DEV. ALL RIGHTS RESERVED.
+      </p>
+      <div class="flex items-center justify-center gap-4 text-[10px]">
+        <span class="text-gray-600 flex items-center gap-1">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          Based on Prometheus
+        </span>
+      </div>
+    </footer>
+
+    <TransitionGroup name="toast" tag="div" class="fixed top-6 right-6 z-[200] flex flex-col gap-2 pointer-events-none">
+      <div v-for="t in toasts" :key="t.id" class="pointer-events-auto min-w-[280px] bg-black/90 border-l-4 p-4 rounded shadow-2xl backdrop-blur flex items-center gap-3"
+           :class="t.type === 'error' ? 'border-red-500' : 'border-hacker-green'">
+        <div class="text-lg">{{ t.type === 'error' ? '🛑' : '✅' }}</div>
+        <div>
+          <h4 class="font-bold text-[10px] text-gray-400 uppercase tracking-widest">{{ t.title }}</h4>
+          <p class="text-xs text-white font-medium">{{ t.msg }}</p>
+        </div>
+      </div>
+    </TransitionGroup>
+
+    <Transition name="modal">
+      <div v-if="showDownloadModal" class="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div class="bg-[#0a0a0a] border border-gray-800 rounded-2xl p-6 max-w-sm w-full shadow-[0_0_50px_rgba(0,255,65,0.1)] relative">
+          <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-hacker-green/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span class="text-2xl">💾</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-1">FILE ENCRYPTED</h3>
+            <p class="text-xs text-gray-500">Your script has been successfully obfuscated.</p>
+          </div>
+          
+          <div class="bg-black/50 p-3 rounded border border-gray-800 mb-6 font-mono text-[10px] text-gray-400">
+            <div class="flex justify-between mb-1"><span>STATUS:</span> <span class="text-hacker-green">SECURE</span></div>
+            <div class="flex justify-between"><span>SIZE:</span> <span>{{ (resultSize / 1024).toFixed(2) }} KB</span></div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <button @click="showDownloadModal = false" class="py-3 text-xs font-bold text-gray-400 bg-gray-900 rounded-lg hover:bg-gray-800 transition">DISCARD</button>
+            <button @click="confirmDownload" class="py-3 text-xs font-bold text-black bg-hacker-green rounded-lg hover:bg-[#33ff66] transition shadow-[0_0_15px_rgba(0,255,65,0.3)]">DOWNLOAD</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import Background from './components/Background.vue'
+
+// --- STATE ---
+const workerReady = ref(false)
+const isProcessing = ref(false)
+const showDownloadModal = ref(false)
+const inputCode = ref('')
+const fileName = ref('')
+const fileSize = ref('')
+const selectedPreset = ref('InsaneMode')
+const terminalLogs = ref([])
+const timer = ref(0.0)
+const toasts = ref([])
+const terminalRef = ref(null)
+const resultBlob = ref(null)
+const resultSize = ref(0)
+
+let timerInterval = null
+let worker = null
+
+// --- TOAST SYSTEM ---
+const showToast = (title, msg, type = 'success') => {
+  const id = Date.now()
+  toasts.value.push({ id, title, msg, type })
+  setTimeout(() => toasts.value = toasts.value.filter(t => t.id !== id), 4000)
+}
+
+// --- WORKER SETUP ---
+const initWorker = () => {
+    // FIX: Menggunakan Classic Worker (tanpa { type: 'module' }) untuk menghindari error importScripts
+    worker = new Worker('/workers/lua.worker.js'); 
+
+    worker.onmessage = (e) => {
+        const { type, result, msg } = e.data;
+        
+        if (type === 'READY') {
+            workerReady.value = true;
+            terminalLogs.value.push("SYSTEM ONLINE: FENGARI VM DETECTED.");
+        } 
+        else if (type === 'SUCCESS') {
+            stopProcessing();
+            resultBlob.value = result;
+            resultSize.value = new Blob([result]).size;
+            showDownloadModal.value = true;
+        } 
+        else if (type === 'ERROR') {
+            stopProcessing();
+            console.error("Worker Error:", msg);
+            showToast("SYSTEM FAILURE", msg, "error");
+        }
+    };
+
+    worker.onerror = (err) => {
+        stopProcessing();
+        console.error("Worker Silent Fail:", err);
+        showToast("CRITICAL ERROR", "Worker failed to start. Check console.", "error");
+    };
+
+    // Send Init Signal with Base URL so worker can fetch JSON
+    worker.postMessage({ 
+        type: 'INIT', 
+        payload: { baseUrl: window.location.origin } 
+    });
+};
+
+const terminateWorker = () => {
+    if (worker) worker.terminate(); 
+    initWorker(); 
+    isProcessing.value = false;
+    showToast("ABORTED", "Operation cancelled by user.", "error")
+}
+
+// --- HANDLERS ---
+const handleTargetUpload = async (e) => {
+    const file = e.target.files[0]
+    if (file) {
+        fileName.value = file.name
+        fileSize.value = (file.size / 1024).toFixed(2) + " KB"
+        inputCode.value = await file.text()
+        showToast("FILE MOUNTED", `${file.name} ready.`, "success")
+    }
+}
+
+const startObfuscation = () => {
+    if (!inputCode.value) return showToast("NO INPUT", "Please upload a script first.", "error")
+    
+    isProcessing.value = true
+    terminalLogs.value = []
+    timer.value = 0.0
+    
+    // Fake Log Sequence
+    const steps = ["INITIALIZING COMPILER...", "ANALYZING SYNTAX TREE...", `APPLYING PRESET: ${selectedPreset.value}...`, "ENCRYPTING STRINGS...", "GENERATING BYTECODE...", "FINALIZING PACKET..."]
+    steps.forEach((step, i) => setTimeout(() => { if(isProcessing.value) terminalLogs.value.push(step) }, i * 600))
+
+    timerInterval = setInterval(() => timer.value = (parseFloat(timer.value) + 0.1).toFixed(1), 100)
+
+    // Delay sedikit biar animasi jalan
+    setTimeout(() => {
+        if(workerReady.value) {
+            worker.postMessage({ type: 'RUN', payload: { code: inputCode.value, preset: selectedPreset.value } })
+        } else {
+            showToast("WAIT", "Worker not ready yet...", "error");
+            stopProcessing();
+        }
+    }, 500)
+}
+
+const stopProcessing = () => {
+    isProcessing.value = false
+    if (timerInterval) clearInterval(timerInterval)
+}
+
+const confirmDownload = () => {
+    if (!resultBlob.value) return
+    const blob = new Blob([resultBlob.value], { type: 'text/plain' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `hakutaka_protected_${Math.floor(Math.random()*9999)}.lua`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    
+    showDownloadModal.value = false
+    showToast("SUCCESS", "File downloaded securely.", "success")
+}
+
+// --- UTILS ---
+const getPresetColor = (p) => p === 'InsaneMode' ? 'border-red-500 text-red-400' : (p.includes('Strong') ? 'border-yellow-500 text-yellow-400' : 'border-hacker-green text-gray-400')
+const getPresetDesc = (p) => ({
+    'Minify': 'Simple compression. Removes spaces/comments.',
+    'Weak': 'Basic variable renaming. Good for performance.',
+    'Medium': 'Balanced obfuscation with control flow flattening.',
+    'Strong': 'Heavy string encryption and flow obfuscation.',
+    'MaxStrong': 'Maximum security layers. Might affect FPS.',
+    'InsaneMode': 'EXPERIMENTAL. Extreme protection. Use at own risk.'
+})[p]
+
+watch(terminalLogs, async () => { await nextTick(); if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight }, { deep: true })
+
+onMounted(() => {
+    // Delay sedikit untuk memastikan Nuxt hydrasi selesai
+    setTimeout(() => initWorker(), 100);
+})
+
+onBeforeUnmount(() => worker && worker.terminate())
+</script>
+
+<style scoped>
+/* Animasi */
+@keyframes progress { 0% { width: 0%; } 100% { width: 100%; } }
+.animate-progress { animation: progress 10s ease-out forwards; }
+.animate-fade-in-down { animation: fadeInDown 0.8s ease-out; }
+@keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Transition Classes */
+.toast-enter-active, .toast-leave-active, .modal-enter-active, .modal-leave-active, .fade-enter-active, .fade-leave-active { transition: all 0.3s ease; }
+.toast-enter-from { opacity: 0; transform: translateX(20px); }
+.toast-leave-to { opacity: 0; transform: translateX(20px); }
+.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.9); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
+
+===== FILE: auto_comit.sh =====
+
+#!/bin/bash
+
+# Tambahkan semua perubahan
+git add -A
+
+# Ambil daftar file yang berubah beserta statusnya
+changes=$(git diff --cached --name-status)
+
+# Jika tidak ada perubahan, keluar
+if [ -z "$changes" ]; then
+    echo "✅ Tidak ada perubahan untuk di-commit."
+    exit 0
+fi
+
+# Buat pesan commit otomatis
+commit_msg="🔄 Auto Commit:
+"
+
+while IFS= read -r line; do
+    commit_msg+=" - $line"$'\n'
+done <<< "$changes"
+
+# Commit
+git commit -m "$commit_msg"
+
+# Deteksi nama branch aktif
+branch=$(git symbolic-ref --short HEAD)
+
+# Push ke remote (origin)
+git push origin "$branch"
+
+echo "✅ Commit dan push berhasil ke branch '$branch'"
+
+===== FILE: nuxt.config.ts =====
+
+// nuxt.config.ts
+export default defineNuxtConfig({
+  devtools: { enabled: true },
+
+  // Daftarkan file CSS utama
+  css: ['~/assets/css/main.css'],
+
+  // Konfigurasi PostCSS untuk Tailwind
+  postcss: {
+    plugins: {
+      tailwindcss: {},
+      autoprefixer: {},
+    },
+  },
+
+  // MATIKAN SSR (Server Side Rendering)
+  // Ini wajib agar Wasmoon jalan full di browser client
+  ssr: false,
+
+  app: {
+    head: {
+      title: 'Prometheus Auto-Web',
+      meta: [
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { name: 'description', content: 'Web-based Lua Obfuscator powered by Prometheus & Wasmoon' }
+      ]
+    }
+  }
+})
+
+===== FILE: package.json =====
+
+{
+  "name": "prometheus-web-auto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "node scripts/bundle-prometheus.js",
+    "build": "npm run prebuild && nuxt build",
+    "dev": "npm run prebuild && nuxt dev",
+    "generate": "npm run prebuild && nuxt generate",
+    "preview": "nuxt preview"
+  },
+  "dependencies": {
+    "wasmoon": "^1.16.0"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "autoprefixer": "^10.4.16",
+    "nuxt": "^3.8.2",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5",
+    "vue": "^3.3.8"
+  }
+}
+
+===== FILE: tailwind.config.ts =====
+
+// tailwind.config.ts
+import type { Config } from 'tailwindcss'
+
+export default <Config>{
+  content: [
+    './components/**/*.{js,vue,ts}',
+    './layouts/**/*.vue',
+    './pages/**/*.vue',
+    './plugins/**/*.{js,ts}',
+    './app.vue',
+    './error.vue',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        // Warna custom untuk tema terminal
+        'hacker-black': '#0a0a0a',
+        'hacker-gray': '#1a1a1a',
+        'hacker-green': '#00ff41',
+      },
+      fontFamily: {
+        // Paksa font monospace agar terlihat seperti coding
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", 'monospace'],
+      }
+    },
+  },
+  plugins: [],
+}
+
+===== FILE: assets/css/main.css =====
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    background-color: #000000;
+    color: #e0e0e0;
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00ff41; }
+}
+
+@layer components {
+  /* Panel Kaca (Glassmorphism) */
+  .glass-panel {
+    @apply bg-black/70 backdrop-blur-xl border border-gray-800 shadow-[0_0_30px_rgba(0,0,0,0.5)];
+  }
+
+  /* Tombol Hacker */
+  .btn-cyber {
+    @apply relative overflow-hidden bg-hacker-green text-black font-black uppercase tracking-widest 
+           py-4 px-6 rounded-lg transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,65,0.6)]
+           disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed;
+  }
+  
+  .btn-cyber::after {
+    content: '';
+    @apply absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent to-white opacity-30 transform -skew-x-12 transition-all duration-500;
+  }
+  
+  .btn-cyber:hover::after {
+    @apply left-full;
+  }
+
+  /* Input Select Keren */
+  .select-cyber {
+    @apply w-full bg-[#0a0a0a] text-gray-300 border border-gray-700 rounded-lg p-4 
+           focus:border-hacker-green focus:ring-1 focus:ring-hacker-green outline-none 
+           appearance-none transition-all cursor-pointer font-bold text-xs uppercase tracking-wider;
+  }
+}
+
+@layer utilities {
+  /* Animasi Glitch Text */
+  .glitch-text {
+    text-shadow: 2px 2px #ff00c1, -2px -2px #00fff9;
+    animation: glitch-skew 1s infinite linear alternate-reverse;
+  }
+  @keyframes glitch-skew {
+    0% { transform: skew(0deg); }
+    20% { transform: skew(-2deg); }
+    40% { transform: skew(2deg); }
+    60% { transform: skew(0deg); }
+    100% { transform: skew(0deg); }
+  }
+
+  /* Scanline Overlay */
+  .scanlines {
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.3));
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 5;
+  }
+}
+
+===== FILE: components/Background.vue =====
+
+<template>
+  <div class="fixed inset-0 z-0 pointer-events-none bg-black">
+    <canvas ref="canvasRef" class="absolute inset-0 w-full h-full opacity-30"></canvas>
+    <div class="absolute inset-0 bg-radial-gradient"></div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted, onBeforeUnmount, ref } from 'vue'
+
+const canvasRef = ref(null)
+let ctx = null
+let animationFrameId = null
+let width = 0
+let height = 0
+let columns = []
+const fontSize = 14
+
+// Karakter Matrix
+const chars = "01010101XYZABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
+
+const initMatrix = () => {
+  width = window.innerWidth
+  height = window.innerHeight
+  canvasRef.value.width = width
+  canvasRef.value.height = height
+  
+  const columnCount = Math.floor(width / fontSize)
+  columns = []
+  for (let i = 0; i < columnCount; i++) {
+    columns[i] = Math.random() * height // Posisi Y acak
+  }
+}
+
+const animate = () => {
+  // Efek Trail: Timpa dengan hitam transparan, bukan dihapus total
+  ctx.fillStyle = "rgba(0, 0, 0, 0.05)"
+  ctx.fillRect(0, 0, width, height)
+
+  ctx.fillStyle = "#00ff41" // Hijau Hacker
+  ctx.font = `${fontSize}px 'JetBrains Mono'`
+
+  for (let i = 0; i < columns.length; i++) {
+    const text = chars[Math.floor(Math.random() * chars.length)]
+    const x = i * fontSize
+    const y = columns[i] * fontSize
+
+    ctx.fillText(text, x, y)
+
+    // Reset ke atas secara acak jika sudah lewat bawah layar
+    if (y * fontSize > height && Math.random() > 0.975) {
+      columns[i] = 0
+    }
+    columns[i]++
+  }
+
+  animationFrameId = requestAnimationFrame(animate)
+}
+
+const handleResize = () => {
+  if (canvasRef.value) initMatrix()
+}
+
+onMounted(() => {
+  if (canvasRef.value) {
+    ctx = canvasRef.value.getContext('2d')
+    initMatrix()
+    animate()
+    window.addEventListener('resize', handleResize)
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  cancelAnimationFrame(animationFrameId)
+})
+</script>
+
+<style scoped>
+.bg-radial-gradient {
+  background: radial-gradient(circle, transparent 0%, #000000 100%);
+}
+</style>
+
+===== FILE: public/workers/lua.worker.js =====
+
+/* eslint-disable no-undef */
+// ===== HAKUTAKA WORKER ENGINE (FENGARI EDITION - CLASSIC WORKER) =====
+
+// 1. Load Fengari Library (Synchronous)
+try {
+    importScripts('https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js');
+} catch (e) {
+    console.error("Fengari Load Error:", e);
+    self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Network Error)' });
+}
+
+// 2. Ensure Fengari is loaded globally
+const fengari = self.fengari || window.fengari;
+
+if (!fengari) {
+    throw new Error("Fengari library not found. Worker halted.");
+}
+
+const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari;
+
+// --- Virtual File System ---
+class VirtualFS {
+    constructor() {
+        this.files = new Map();
+    }
+    mount(bundle) {
+        this.files.clear();
+        for (const file of bundle) {
+            let cleanPath = file.path.replace(/\\/g, '/'); // Normalize Windows paths
+            if (cleanPath.startsWith('./')) cleanPath = cleanPath.substring(2);
+            this.files.set(cleanPath, file.content);
+        }
+    }
+    exists(path) { return this.files.has(path); }
+    read(path) { return this.files.get(path); }
+}
+
+// --- Lua Engine Wrapper ---
+class Engine {
+    constructor() {
+        this.L = null;
+        this.fs = new VirtualFS();
+    }
+
+    initialize(bundle) {
+        this.fs.mount(bundle);
+
+        // Reset State if exists
+        if (this.L) {
+            lua.lua_close(this.L);
+        }
+
+        // Initialize Lua State
+        this.L = lauxlib.luaL_newstate();
+        lualib.luaL_openlibs(this.L);
+
+        // 1. Compatibility Shim (Lua 5.3 -> Lua 5.1/JIT Style)
+        const polyfills = `
+            _G.unpack = table.unpack or _G.unpack
+            _G.loadstring = load
+            -- Simple bit32 shim if missing
+            if not _G.bit32 then
+                _G.bit32 = {}
+                _G.bit32.band = function(a,b) return a & b end
+                _G.bit32.bor = function(a,b) return a | b end
+                _G.bit32.bxor = function(a,b) return a ~ b end
+                _G.bit32.lshift = function(a,b) return a << b end
+                _G.bit32.rshift = function(a,b) return a >> b end
+            end
+        `;
+        lauxlib.luaL_dostring(this.L, to_luastring(polyfills));
+
+        // 2. Custom Package Searcher (Bridges Lua `require` to VirtualFS)
+        const loaderCode = `
+            local js_fs = ...
+            local function loader(name)
+                local path = name:gsub("%.", "/") .. ".lua"
+                if js_fs:exists(path) then
+                    return load(js_fs:read(path), path)
+                end
+                return "\\n\\t[VFS] no file '" .. path .. "'"
+            end
+            table.insert(package.searchers, 2, loader)
+        `;
+        
+        // Load chunk
+        if (lauxlib.luaL_loadbuffer(this.L, to_luastring(loaderCode), null, to_luastring("vfs_loader")) !== lua.LUA_OK) {
+             const err = lua.lua_tojsstring(this.L, -1);
+             console.error("VFS Loader Error:", err);
+             return;
+        }
+
+        // Push FS object (lightuserdata)
+        lua.lua_pushlightuserdata(this.L, this.fs);
+        
+        // Run loader setup
+        if (lua.lua_pcall(this.L, 1, 0, 0) !== lua.LUA_OK) {
+            const err = lua.lua_tojsstring(this.L, -1);
+            console.error("VFS Init Error:", err);
+        }
+    }
+
+    run(code, preset) {
+        if (!this.L) throw new Error("Engine not initialized");
+
+        const script = `
+            local code, preset = ...
+            
+            -- Setup Path
+            package.path = "./?.lua;./src/?.lua;./src/prometheus/?.lua;" .. package.path
+            
+            -- Load Prometheus
+            local status, P = pcall(require, "src.prometheus")
+            if not status then 
+                error("Failed to load Prometheus: " .. tostring(P)) 
+            end
+            
+            local cfg = P.Presets[preset]
+            if not cfg then error("Invalid Preset: " .. tostring(preset)) end
+            
+            cfg.PrettyPrint = false
+            
+            -- Execute Pipeline
+            return P.Pipeline:fromConfig(cfg):apply(code, "script.lua")
+        `;
+
+        // Load Script
+        if (lauxlib.luaL_loadstring(this.L, to_luastring(script)) !== lua.LUA_OK) {
+            const errMsg = lua.lua_tojsstring(this.L, -1);
+            lua.lua_pop(this.L, 1);
+            throw new Error(`Lua Syntax Error: ${errMsg}`);
+        }
+
+        // Push Arguments
+        lua.lua_pushstring(this.L, to_luastring(code));
+        lua.lua_pushstring(this.L, to_luastring(preset));
+
+        // Call (2 args, 1 result)
+        const pcallStatus = lua.lua_pcall(this.L, 2, 1, 0);
+        
+        if (pcallStatus !== lua.LUA_OK) {
+            const err = lua.lua_tojsstring(this.L, -1);
+            lua.lua_pop(this.L, 1);
+            throw new Error(err); // Throw pure string error from Lua
+        }
+
+        // Get Result
+        const result = lua.lua_tojsstring(this.L, -1);
+        lua.lua_pop(this.L, 1);
+        return result;
+    }
+}
+
+// --- Event Listener ---
+const engine = new Engine();
+
+self.onmessage = async (e) => {
+    const { type, payload } = e.data;
+
+    try {
+        if (type === 'INIT') {
+            // Fetch bundle
+            const response = await fetch(`${payload.baseUrl}/prometheus-bundle.json`);
+            if (!response.ok) throw new Error(`Failed to load bundle (HTTP ${response.status})`);
+            
+            const bundle = await response.json();
+            engine.initialize(bundle);
+            
+            self.postMessage({ type: 'READY' });
+        } 
+        else if (type === 'RUN') {
+            const result = engine.run(payload.code, payload.preset);
+            self.postMessage({ type: 'SUCCESS', result });
+        }
+    } catch (err) {
+        self.postMessage({ type: 'ERROR', msg: err.message || "Unknown Worker Error" });
+    }
+};
+
+===== FILE: scripts/bundle-prometheus.js =====
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Konfigurasi Path: Pastikan mengarah ke public/prometheus
+const PROMETHEUS_DIR = path.join(__dirname, '../public/prometheus');
+const OUTPUT_FILE = path.join(__dirname, '../public/prometheus-bundle.json');
+
+function getAllFiles(dirPath, arrayOfFiles) {
+  if (!fs.existsSync(dirPath)) {
+    console.error(`\n❌ ERROR FATAL: Folder tidak ditemukan: ${dirPath}`);
+    process.exit(1); 
+  }
+
+  const files = fs.readdirSync(dirPath);
+  arrayOfFiles = arrayOfFiles || [];
+
+  files.forEach(function(file) {
+    const fullPath = path.join(dirPath, file);
+    if (fs.statSync(fullPath).isDirectory()) {
+      arrayOfFiles = getAllFiles(fullPath, arrayOfFiles);
+    } else {
+      if (file.endsWith('.lua')) {
+        arrayOfFiles.push(fullPath);
+      }
+    }
+  });
+
+  return arrayOfFiles;
+}
+
+console.log(`📦 Memulai Bundling Prometheus...`);
+
+try {
+  const allFiles = getAllFiles(PROMETHEUS_DIR);
+  
+  const bundle = allFiles.map(fullPath => {
+    // GUNAKAN path.relative AGAR AMAN DI SEMUA OS (WINDOWS/LINUX)
+    let relativePath = path.relative(PROMETHEUS_DIR, fullPath);
+    
+    // Ubah backslash Windows (\) jadi forward slash (/)
+    relativePath = relativePath.replace(/\\/g, '/');
+
+    const content = fs.readFileSync(fullPath, 'utf-8');
+    
+    return {
+      path: relativePath,
+      content: content
+    };
+  });
+
+  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(bundle));
+  console.log(`✅ SUKSES! ${bundle.length} file Lua berhasil dibundle.`);
+
+} catch (e) {
+  console.error("❌ Gagal membundle:", e);
+  process.exit(1);
+}
+
+===== FILE: src/runtime/VirtualFS.js =====
+
+export class VirtualFS {
+    constructor() {
+        this.files = new Map();
+    }
+
+    /**
+     * Mounts the bundle into memory
+     * @param {Array<{path: string, content: string}>} bundle 
+     */
+    mount(bundle) {
+        this.files.clear();
+        for (const file of bundle) {
+            // Normalize paths: remove ./ and ensure consistent keys
+            const cleanPath = file.path.replace(/^\.\//, '');
+            this.files.set(cleanPath, file.content);
+        }
+    }
+
+    exists(path) {
+        return this.files.has(path);
+    }
+
+    read(path) {
+        return this.files.get(path);
+    }
+}
+
+===== FILE: src/runtime/LuaRuntime.js =====
+
+import fengari from 'fengari-web'; // Ensure this is installed or loaded from CDN
+const { lua, lauxlib, lualib, to_jsstring, to_luastring } = fengari;
+
+export class LuaRuntime {
+    constructor() {
+        this.L = null;
+    }
+
+    init(fs) {
+        // 1. Create new State
+        this.L = lauxlib.luaL_newstate();
+        
+        // 2. Open standard libraries
+        lualib.luaL_openlibs(this.L);
+
+        // 3. Inject Polyfills for Lua 5.1 Compatibility (Crucial for Prometheus)
+        const polyfills = `
+            _G.unpack = table.unpack
+            _G.loadstring = load
+            -- Simple setfenv shim (not perfect, but works for most obfuscator scopes)
+            _G.setfenv = function(f, t)
+                local i = 1
+                while true do
+                    local name = debug.getupvalue(f, i)
+                    if name == "_ENV" then
+                        debug.setupvalue(f, i, t)
+                        break
+                    elseif not name then
+                        break
+                    end
+                    i = i + 1
+                end
+                return f
+            end
+        `;
+        lauxlib.luaL_dostring(this.L, to_luastring(polyfills));
+
+        // 4. Register Custom Loader for VirtualFS
+        // This allows require("src.prometheus") to read from our JS Map
+        this.registerCustomLoader(fs);
+    }
+
+    registerCustomLoader(fs) {
+        // We define a loader function in Lua that calls back into JS to find files
+        const loaderCode = `
+            local js_fs = ...
+            local function loader(name)
+                -- Convert module name (dotted) to path (slashed)
+                local path = name:gsub("%.", "/") .. ".lua"
+                
+                -- Check if file exists in VirtualFS
+                if js_fs:exists(path) then
+                    local content = js_fs:read(path)
+                    return load(content, path)
+                end
+                return "\n\tno file '" .. path .. "' in VirtualFS"
+            end
+            
+            -- Insert loader at index 2 (after preload, before standard paths)
+            table.insert(package.searchers, 2, loader)
+        `;
+
+        // Push the FS object as an argument to the chunk
+        lauxlib.luaL_loadbuffer(this.L, to_luastring(loaderCode), null, null);
+        lua.lua_pushlightuserdata(this.L, fs); 
+        lua.lua_call(this.L, 1, 0);
+    }
+
+    runObfuscation(code, preset) {
+        // Prepare the payload
+        const bootstrap = `
+            local code = ...
+            local preset = ...
+            
+            -- Prometheus Entry Point Logic
+            -- We assume the files are mounted via the custom loader
+            
+            package.path = "./?.lua;./src/?.lua;./src/prometheus/?.lua;" .. package.path
+            local P = require("src.prometheus")
+            
+            local cfg = P.Presets[preset]
+            if not cfg then 
+                error("Preset not found: " .. tostring(preset)) 
+            end
+            
+            cfg.PrettyPrint = false
+            
+            -- Execute Pipeline
+            return P.Pipeline:fromConfig(cfg):apply(code, "hakutaka_script.lua")
+        `;
+
+        // Load the bootstrap chunk
+        const status = lauxlib.luaL_loadstring(this.L, to_luastring(bootstrap));
+        
+        if (status !== lua.LUA_OK) {
+            const err = lua.lua_tojsstring(this.L, -1);
+            throw new Error(`Lua Load Error: ${err}`);
+        }
+
+        // Push arguments
+        lua.lua_pushstring(this.L, to_luastring(code));
+        lua.lua_pushstring(this.L, to_luastring(preset));
+
+        // Pcall (Protected Call) - 2 args, 1 result
+        const runStatus = lua.lua_pcall(this.L, 2, 1, 0);
+
+        if (runStatus !== lua.LUA_OK) {
+            const err = lua.lua_tojsstring(this.L, -1);
+            throw new Error(`Obfuscation Error: ${err}`);
+        }
+
+        // Retrieve result
+        const result = lua.lua_tojsstring(this.L, -1);
+        lua.lua_pop(this.L, 1); // Clean stack
+
+        return result;
+    }
+
+    destroy() {
+        if (this.L) {
+            lua.lua_close(this.L);
+            this.L = null;
+        }
+    }
+}

@@ -1,12 +1,29 @@
 /* eslint-disable no-undef */
-// ===== HAKUTAKA WORKER ENGINE (FENGARI EDITION) =====
+// ===== HAKUTAKA WORKER ENGINE (FENGARI EDITION - CLASSIC WORKER) =====
 
-// Import Fengari (Universal Module Definition)
-// Ensure 'fengari-web.js' is available in your public/lib folder
-// Or use a reliable CDN if internet access is guaranteed
-importScripts('https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js');
+// 1. Load Fengari Library (LOCAL)
+// Menggunakan path absolut dari root domain
+try {
+    importScripts('/lib/fengari-web.js'); 
+} catch (e) {
+    console.error("Fengari Load Error:", e);
+    self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Local File Missing)' });
+}
 
-// --- Virtual File System (Inlined for Worker Isolation) ---
+// 2. Ensure Fengari is loaded globally
+const fengari = self.fengari || window.fengari;
+// ... sisa kode ke bawah SAMA PERSIS, tidak usah diubah ...
+
+// 2. Ensure Fengari is loaded globally
+const fengari = self.fengari || window.fengari;
+
+if (!fengari) {
+    throw new Error("Fengari library not found. Worker halted.");
+}
+
+const { lua, lauxlib, lualib, to_luastring, to_jsstring } = fengari;
+
+// --- Virtual File System ---
 class VirtualFS {
     constructor() {
         this.files = new Map();
@@ -14,10 +31,7 @@ class VirtualFS {
     mount(bundle) {
         this.files.clear();
         for (const file of bundle) {
-            let cleanPath = file.path;
-            // Normalize Windows/Unix paths to Unix style
-            cleanPath = cleanPath.replace(/\\/g, '/');
-            // Remove leading ./ if present
+            let cleanPath = file.path.replace(/\\/g, '/'); // Normalize Windows paths
             if (cleanPath.startsWith('./')) cleanPath = cleanPath.substring(2);
             this.files.set(cleanPath, file.content);
         }
@@ -26,9 +40,7 @@ class VirtualFS {
     read(path) { return this.files.get(path); }
 }
 
-// --- Runtime Wrapper ---
-const { lua, lauxlib, lualib, to_luastring } = fengari;
-
+// --- Lua Engine Wrapper ---
 class Engine {
     constructor() {
         this.L = null;
@@ -36,23 +48,34 @@ class Engine {
     }
 
     initialize(bundle) {
-        // Mount files
         this.fs.mount(bundle);
+
+        // Reset State if exists
+        if (this.L) {
+            lua.lua_close(this.L);
+        }
 
         // Initialize Lua State
         this.L = lauxlib.luaL_newstate();
         lualib.luaL_openlibs(this.L);
 
-        // 1. Compatibility Shim (5.3 -> 5.1/LuaJIT for Prometheus)
+        // 1. Compatibility Shim (Lua 5.3 -> Lua 5.1/JIT Style)
         const polyfills = `
             _G.unpack = table.unpack or _G.unpack
             _G.loadstring = load
-            _G.bit32 = _G.bit32 or require("bit") -- If bit32 is missing
+            -- Simple bit32 shim if missing
+            if not _G.bit32 then
+                _G.bit32 = {}
+                _G.bit32.band = function(a,b) return a & b end
+                _G.bit32.bor = function(a,b) return a | b end
+                _G.bit32.bxor = function(a,b) return a ~ b end
+                _G.bit32.lshift = function(a,b) return a << b end
+                _G.bit32.rshift = function(a,b) return a >> b end
+            end
         `;
         lauxlib.luaL_dostring(this.L, to_luastring(polyfills));
 
-        // 2. Custom Package Searcher
-        // This bridges Lua's require() to our VirtualFS Map
+        // 2. Custom Package Searcher (Bridges Lua `require` to VirtualFS)
         const loaderCode = `
             local js_fs = ...
             local function loader(name)
@@ -65,27 +88,37 @@ class Engine {
             table.insert(package.searchers, 2, loader)
         `;
         
-        // Load the loader chunk
-        lauxlib.luaL_loadbuffer(this.L, to_luastring(loaderCode), null, to_luastring("vfs_loader"));
-        // Push the JS FS object instance as a lightuserdata
+        // Load chunk
+        if (lauxlib.luaL_loadbuffer(this.L, to_luastring(loaderCode), null, to_luastring("vfs_loader")) !== lua.LUA_OK) {
+             const err = lua.lua_tojsstring(this.L, -1);
+             console.error("VFS Loader Error:", err);
+             return;
+        }
+
+        // Push FS object (lightuserdata)
         lua.lua_pushlightuserdata(this.L, this.fs);
-        // Execute loader setup
-        lua.lua_call(this.L, 1, 0);
+        
+        // Run loader setup
+        if (lua.lua_pcall(this.L, 1, 0, 0) !== lua.LUA_OK) {
+            const err = lua.lua_tojsstring(this.L, -1);
+            console.error("VFS Init Error:", err);
+        }
     }
 
     run(code, preset) {
         if (!this.L) throw new Error("Engine not initialized");
 
-        // Prepare Execution Script
         const script = `
             local code, preset = ...
             
-            -- Setup Path for Prometheus logic
-            -- Note: Our VFS loader handles the lookup, but Prometheus might check package.path
+            -- Setup Path
             package.path = "./?.lua;./src/?.lua;./src/prometheus/?.lua;" .. package.path
             
-            local success, P = pcall(require, "src.prometheus")
-            if not success then error("Failed to load Prometheus: " .. tostring(P)) end
+            -- Load Prometheus
+            local status, P = pcall(require, "src.prometheus")
+            if not status then 
+                error("Failed to load Prometheus: " .. tostring(P)) 
+            end
             
             local cfg = P.Presets[preset]
             if not cfg then error("Invalid Preset: " .. tostring(preset)) end
@@ -96,14 +129,14 @@ class Engine {
             return P.Pipeline:fromConfig(cfg):apply(code, "script.lua")
         `;
 
-        const status = lauxlib.luaL_loadstring(this.L, to_luastring(script));
-        if (status !== lua.LUA_OK) {
+        // Load Script
+        if (lauxlib.luaL_loadstring(this.L, to_luastring(script)) !== lua.LUA_OK) {
             const errMsg = lua.lua_tojsstring(this.L, -1);
             lua.lua_pop(this.L, 1);
-            throw new Error(`Lua Compile Error: ${errMsg}`);
+            throw new Error(`Lua Syntax Error: ${errMsg}`);
         }
 
-        // Push Args
+        // Push Arguments
         lua.lua_pushstring(this.L, to_luastring(code));
         lua.lua_pushstring(this.L, to_luastring(preset));
 
@@ -113,16 +146,17 @@ class Engine {
         if (pcallStatus !== lua.LUA_OK) {
             const err = lua.lua_tojsstring(this.L, -1);
             lua.lua_pop(this.L, 1);
-            throw new Error(err);
+            throw new Error(err); // Throw pure string error from Lua
         }
 
+        // Get Result
         const result = lua.lua_tojsstring(this.L, -1);
         lua.lua_pop(this.L, 1);
         return result;
     }
 }
 
-// --- Worker Event Handling ---
+// --- Event Listener ---
 const engine = new Engine();
 
 self.onmessage = async (e) => {
@@ -130,12 +164,13 @@ self.onmessage = async (e) => {
 
     try {
         if (type === 'INIT') {
-            // Fetch bundle from public folder
+            // Fetch bundle
             const response = await fetch(`${payload.baseUrl}/prometheus-bundle.json`);
-            if (!response.ok) throw new Error("Failed to load Prometheus bundle");
-            const bundle = await response.json();
+            if (!response.ok) throw new Error(`Failed to load bundle (HTTP ${response.status})`);
             
+            const bundle = await response.json();
             engine.initialize(bundle);
+            
             self.postMessage({ type: 'READY' });
         } 
         else if (type === 'RUN') {
@@ -143,6 +178,6 @@ self.onmessage = async (e) => {
             self.postMessage({ type: 'SUCCESS', result });
         }
     } catch (err) {
-        self.postMessage({ type: 'ERROR', msg: err.message });
+        self.postMessage({ type: 'ERROR', msg: err.message || "Unknown Worker Error" });
     }
 };

@@ -1,16 +1,20 @@
 /* eslint-disable no-undef */
 // ===== HAKUTAKA WORKER ENGINE (FENGARI EDITION - CLASSIC WORKER) =====
 
-// 1. Load Fengari Library (Synchronous)
+// 1. Load Fengari Library (LOCAL)
+// Menggunakan path absolut dari root domain
 try {
-    importScripts('https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js');
+    importScripts('/lib/fengari-web.js'); 
 } catch (e) {
     console.error("Fengari Load Error:", e);
-    self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Network Error)' });
+    self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Local File Missing)' });
 }
 
 // 2. Ensure Fengari is loaded globally
 const fengari = self.fengari || window.fengari;
+// ... sisa kode ke bawah SAMA PERSIS, tidak usah diubah ...
+
+// 2. Ensure Fengari is loaded globally
 
 if (!fengari) {
     throw new Error("Fengari library not found. Worker halted.");
