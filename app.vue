@@ -172,29 +172,38 @@ const showToast = (title, msg, type = 'success') => {
   setTimeout(() => toasts.value = toasts.value.filter(t => t.id !== id), 4000)
 }
 
-// --- WORKER SETUP ---
-const initWorker = () => {
-    const blob = new Blob([workerScript], { type: 'application/javascript' })
-    const workerUrl = URL.createObjectURL(blob)
-    worker = new Worker(workerUrl, { type: 'module' })
+// Remove imports regarding Wasmoon/LuaFactory
+// import { LuaFactory } from '...' (DELETE THIS)
 
-    worker.onmessage = async (e) => {
-        const { type, result, msg } = e.data
+// ... inside script setup ...
+
+const initWorker = () => {
+    // Point to the dedicated file instead of creating Blob from string
+    worker = new Worker('/workers/lua.worker.js', { type: 'module' });
+
+    worker.onmessage = (e) => {
+        const { type, result, msg } = e.data;
         if (type === 'READY') {
-            workerReady.value = true
+            workerReady.value = true;
+            // Fake log for UX
+            terminalLogs.value.push("LUA VM MOUNTED (FENGARI v0.1.4)");
         } else if (type === 'SUCCESS') {
-            stopProcessing()
-            // Simpan hasil ke state, buka modal
-            resultBlob.value = result
-            resultSize.value = new Blob([result]).size
-            showDownloadModal.value = true
+            stopProcessing();
+            resultBlob.value = result;
+            resultSize.value = new Blob([result]).size;
+            showDownloadModal.value = true;
         } else if (type === 'ERROR') {
-            stopProcessing()
-            showToast("SYSTEM FAILURE", msg, "error")
+            stopProcessing();
+            showToast("SYSTEM FAILURE", msg, "error");
         }
-    }
-    worker.postMessage({ type: 'INIT', payload: { baseUrl: window.location.origin } })
-}
+    };
+
+    // Send Init Signal with Base URL so worker can fetch JSON
+    worker.postMessage({ 
+        type: 'INIT', 
+        payload: { baseUrl: window.location.origin } 
+    });
+};
 
 const terminateWorker = () => {
     if (worker) worker.terminate(); 
