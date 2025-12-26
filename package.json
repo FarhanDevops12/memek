@@ -1,0 +1,23 @@
+{
+  "name": "prometheus-web-auto",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "node scripts/bundle-prometheus.js",
+    "build": "npm run prebuild && nuxt build",
+    "dev": "npm run prebuild && nuxt dev",
+    "generate": "npm run prebuild && nuxt generate",
+    "preview": "nuxt preview"
+  },
+  "dependencies": {
+    "wasmoon": "^1.16.0"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "autoprefixer": "^10.4.16",
+    "nuxt": "^3.8.2",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^3.3.5",
+    "vue": "^3.3.8"
+  }
+}

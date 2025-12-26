@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    background-color: #000000;
+    color: #e0e0e0;
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #050505; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #00ff41; }
+}
+
+@layer components {
+  /* Panel Kaca (Glassmorphism) */
+  .glass-panel {
+    @apply bg-black/70 backdrop-blur-xl border border-gray-800 shadow-[0_0_30px_rgba(0,0,0,0.5)];
+  }
+
+  /* Tombol Hacker */
+  .btn-cyber {
+    @apply relative overflow-hidden bg-hacker-green text-black font-black uppercase tracking-widest 
+           py-4 px-6 rounded-lg transition-all duration-300 hover:shadow-[0_0_20px_rgba(0,255,65,0.6)]
+           disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed;
+  }
+  
+  .btn-cyber::after {
+    content: '';
+    @apply absolute top-0 -left-full w-full h-full bg-gradient-to-r from-transparent to-white opacity-30 transform -skew-x-12 transition-all duration-500;
+  }
+  
+  .btn-cyber:hover::after {
+    @apply left-full;
+  }
+
+  /* Input Select Keren */
+  .select-cyber {
+    @apply w-full bg-[#0a0a0a] text-gray-300 border border-gray-700 rounded-lg p-4 
+           focus:border-hacker-green focus:ring-1 focus:ring-hacker-green outline-none 
+           appearance-none transition-all cursor-pointer font-bold text-xs uppercase tracking-wider;
+  }
+}
+
+@layer utilities {
+  /* Animasi Glitch Text */
+  .glitch-text {
+    text-shadow: 2px 2px #ff00c1, -2px -2px #00fff9;
+    animation: glitch-skew 1s infinite linear alternate-reverse;
+  }
+  @keyframes glitch-skew {
+    0% { transform: skew(0deg); }
+    20% { transform: skew(-2deg); }
+    40% { transform: skew(2deg); }
+    60% { transform: skew(0deg); }
+    100% { transform: skew(0deg); }
+  }
+
+  /* Scanline Overlay */
+  .scanlines {
+    background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.3));
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 5;
+  }
+}
