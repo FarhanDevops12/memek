@@ -2,21 +2,28 @@
 // ===== HAKUTAKA WORKER ENGINE (FENGARI EDITION - CLASSIC WORKER) =====
 
 // 1. Load Fengari Library (LOCAL)
-// Menggunakan path absolut dari root domain
+// PERBAIKAN: Menggunakan Relative Path (../) agar lebih aman di Vercel/Production
 try {
-    importScripts('/lib/fengari-web.js'); 
+    // Mencoba load relatif dari posisi worker (/workers/ -> /lib/)
+    importScripts('../lib/fengari-web.js');
 } catch (e) {
-    console.error("Fengari Load Error:", e);
-    self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Local File Missing)' });
+    // Fallback: Jika relatif gagal, coba absolute path dengan self.location.origin
+    // Ini membantu jika server memiliki struktur URL yang ketat
+    try {
+        const origin = self.location.origin;
+        importScripts(`${origin}/lib/fengari-web.js`);
+    } catch (e2) {
+        console.error("Fengari Load Error:", e2);
+        self.postMessage({ type: 'ERROR', msg: 'Failed to load Lua Engine (Local File Missing)' });
+    }
 }
 
 // 2. Ensure Fengari is loaded globally
 const fengari = self.fengari || window.fengari;
-// ... sisa kode ke bawah SAMA PERSIS, tidak usah diubah ...
-
-// 2. Ensure Fengari is loaded globally
 
 if (!fengari) {
+    // Kirim pesan error ke UI agar user tahu
+    self.postMessage({ type: 'ERROR', msg: 'Fengari Library failed to initialize.' });
     throw new Error("Fengari library not found. Worker halted.");
 }
 
